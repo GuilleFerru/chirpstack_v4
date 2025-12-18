@@ -1,0 +1,15 @@
+# Certificates (contain private keys - generate on target machine)
+configuration/chirpstack/certs/
+
+# Docker volumes data
+postgresqldata/
+redisdata/
+
+# Environment files with secrets
+.env
+*.env.local
+
+# MQTT server certificates
+certificates/
+
+
