@@ -13,6 +13,9 @@ generate-certs:
 generate-mqtt-certs:
 	chmod +x scripts/04_generate-mqtt-server-certs.sh && scripts/04_generate-mqtt-server-certs.sh
 
+generate-basicstation-certs:
+	chmod +x scripts/05_generate-gateway-bridge-certs.sh && scripts/05_generate-gateway-bridge-certs.sh
+
 renew-certs:
 	chmod +x scripts/03_renew-certs.sh && scripts/03_renew-certs.sh
 

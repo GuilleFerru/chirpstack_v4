@@ -83,6 +83,7 @@ services:
       - "3000:3001"
     volumes:
       - ./configuration/chirpstack-gateway-bridge:/etc/chirpstack-gateway-bridge
+      - ./configuration/chirpstack/certs:/etc/chirpstack-gateway-bridge/certs:ro
     depends_on:
       - mosquitto
 
@@ -97,6 +98,7 @@ services:
       - "3001:3001"
     volumes:
       - ./configuration/chirpstack-gateway-bridge:/etc/chirpstack-gateway-bridge
+      - ./configuration/chirpstack/certs:/etc/chirpstack-gateway-bridge/certs:ro
     depends_on:
       - mosquitto
 
@@ -111,6 +113,7 @@ services:
       - "3002:3001"
     volumes:
       - ./configuration/chirpstack-gateway-bridge:/etc/chirpstack-gateway-bridge
+      - ./configuration/chirpstack/certs:/etc/chirpstack-gateway-bridge/certs:ro
     depends_on:
       - mosquitto
 

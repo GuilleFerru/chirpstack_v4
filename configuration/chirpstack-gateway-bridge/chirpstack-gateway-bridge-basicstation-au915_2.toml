@@ -16,9 +16,12 @@ type="basic_station"
 
   [backend.basic_station]
   bind=":3001"
-  tls_cert=""
-  tls_key=""
-  ca_cert=""
+  
+  # TLS para conexiones seguras con gateways (Basics Station)
+  # Todos los certificados usan el mismo CA de ChirpStack
+  ca_cert="/etc/chirpstack-gateway-bridge/certs/ca.pem"
+  tls_cert="/etc/chirpstack-gateway-bridge/certs/basicstation-server.pem"
+  tls_key="/etc/chirpstack-gateway-bridge/certs/basicstation-server-key.pem"
 
   region="AU915"
   frequency_min=915000000
