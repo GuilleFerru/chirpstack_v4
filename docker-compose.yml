@@ -144,12 +144,13 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2
     restart: unless-stopped
+    user: root
     ports:
       - "1883:1883"
       - "1884:1884"
     volumes:
       - ./configuration/mosquitto/config/:/mosquitto/config/
-      - ./configuration/chirpstack/certs:/mosquitto/certs:ro
+      - ./configuration/chirpstack/certs:/mosquitto/certs
       - mosquittodata:/mosquitto/data
 
 volumes:
