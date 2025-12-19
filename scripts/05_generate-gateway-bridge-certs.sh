@@ -1,7 +1,10 @@
 #!/bin/bash
 # =============================================================================
 # Script para generar certificados del Gateway Bridge (Basics Station Server)
-# Ejecutar después de generar los certificados CA
+# Ejecutar después de generar los certificados CA (02_generate-certs.sh)
+# 
+# Este certificado es usado por el Gateway Bridge para aceptar conexiones
+# WebSocket TLS (wss://) desde los gateways con Basics Station.
 # =============================================================================
 
 set -e
@@ -13,6 +16,8 @@ CERTS_DIR="$PROJECT_DIR/configuration/chirpstack/certs"
 # Colores
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
 log() {
@@ -23,10 +28,27 @@ log_error() {
     echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ❌ $1${NC}"
 }
 
+log_warn() {
+    echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️  $1${NC}"
+}
+
+# Función para obtener IP pública
+get_public_ip() {
+    local public_ip=""
+    public_ip=$(curl -s --connect-timeout 5 https://api.ipify.org 2>/dev/null) || \
+    public_ip=$(curl -s --connect-timeout 5 https://ifconfig.me 2>/dev/null) || \
+    public_ip=$(curl -s --connect-timeout 5 https://icanhazip.com 2>/dev/null) || \
+    public_ip=""
+    echo "$public_ip"
+}
+
 echo ""
 echo "╔═══════════════════════════════════════════════════════════╗"
 echo "║     Generador de Certificados Basics Station Server       ║"
 echo "║     (Para Gateway Bridge WebSocket TLS)                   ║"
+echo "╠═══════════════════════════════════════════════════════════╣"
+echo "║  Este certificado permite a los gateways conectarse       ║"
+echo "║  de forma segura al Gateway Bridge via wss://             ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -44,24 +66,105 @@ cd "$CERTS_DIR"
 
 # Verificar si ya existen certificados
 if [ -f "$CERTS_DIR/basicstation-server.pem" ] && [ -f "$CERTS_DIR/basicstation-server-key.pem" ]; then
-    log "⚠️  Los certificados del servidor Basics Station ya existen"
-    read -p "¿Deseas regenerarlos? (y/N): " -n 1 -r
+    log_warn "Los certificados del servidor Basics Station ya existen"
+    echo ""
+    echo "  Certificados actuales:"
+    echo "  - basicstation-server.pem"
+    echo "  - basicstation-server-key.pem"
+    echo ""
+    
+    # Mostrar información del certificado actual
+    if command -v openssl &> /dev/null; then
+        echo "  📋 Información del certificado actual:"
+        echo "  ────────────────────────────────────────"
+        CURRENT_EXPIRY=$(openssl x509 -in basicstation-server.pem -noout -enddate 2>/dev/null | cut -d= -f2)
+        CURRENT_SANS=$(openssl x509 -in basicstation-server.pem -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" | tail -1 | xargs)
+        echo "  Expira: $CURRENT_EXPIRY"
+        echo "  SANs:   $CURRENT_SANS"
+        echo ""
+    fi
+    
+    read -p "¿Deseas ELIMINAR los certificados existentes y regenerarlos? (y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Usando certificados existentes."
+        echo "Manteniendo certificados existentes."
         exit 0
     fi
-    rm -f basicstation-server.pem basicstation-server-key.pem
+    
+    log "Eliminando certificados antiguos..."
+    rm -f basicstation-server.pem basicstation-server-key.pem basicstation-server.csr basicstation-server.conf ca.srl
+    log "✅ Certificados antiguos eliminados"
+    echo ""
 fi
 
 # Obtener información del servidor
-SERVER_IP=$(hostname -I | awk '{print $1}')
+SERVER_IP_INTERNAL=$(hostname -I | awk '{print $1}')
 SERVER_HOSTNAME=$(hostname)
 
-log "Generando certificados para Basics Station Server..."
-log "IP del servidor: $SERVER_IP"
-log "Hostname: $SERVER_HOSTNAME"
+# Intentar obtener IP pública automáticamente
+log "Detectando IP pública..."
+SERVER_IP_PUBLIC=$(get_public_ip)
+
 echo ""
+echo "  ┌─────────────────────────────────────────────────────────┐"
+echo "  │  Configuración de IPs para el certificado              │"
+echo "  ├─────────────────────────────────────────────────────────┤"
+echo "  │  IP Interna detectada:  $SERVER_IP_INTERNAL"
+echo "  │  IP Pública detectada:  ${SERVER_IP_PUBLIC:-No detectada}"
+echo "  │  Hostname:              $SERVER_HOSTNAME"
+echo "  └─────────────────────────────────────────────────────────┘"
+echo ""
+
+# Preguntar por IP pública si no se detectó o para confirmar
+if [ -z "$SERVER_IP_PUBLIC" ]; then
+    log_warn "No se pudo detectar la IP pública automáticamente"
+fi
+
+read -p "¿Deseas ingresar/modificar la IP pública manualmente? (y/N): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    read -p "Ingresa la IP pública del servidor: " MANUAL_IP
+    if [ -n "$MANUAL_IP" ]; then
+        SERVER_IP_PUBLIC="$MANUAL_IP"
+        log "✅ IP pública configurada: $SERVER_IP_PUBLIC"
+    fi
+fi
+
+# Validar que tenemos al menos una IP
+if [ -z "$SERVER_IP_INTERNAL" ] && [ -z "$SERVER_IP_PUBLIC" ]; then
+    log_error "No se pudo obtener ninguna IP del servidor"
+    exit 1
+fi
+
+log "Generando certificados para Basics Station Server..."
+echo ""
+echo "  📋 Resumen de configuración:"
+echo "  ────────────────────────────────────────"
+echo "  IP Interna:  $SERVER_IP_INTERNAL"
+echo "  IP Pública:  ${SERVER_IP_PUBLIC:-No configurada}"
+echo "  Hostname:    $SERVER_HOSTNAME"
+echo ""
+
+# Construir alt_names dinámicamente
+# DNS entries para todos los servicios de Gateway Bridge basicstation
+ALT_NAMES="DNS.1 = localhost
+DNS.2 = $SERVER_HOSTNAME
+DNS.3 = chirpstack-gateway-bridge-basicstation-au915-0
+DNS.4 = chirpstack-gateway-bridge-basicstation-au915-1
+DNS.5 = chirpstack-gateway-bridge-basicstation-au915-2
+IP.1 = 127.0.0.1"
+
+IP_INDEX=2
+if [ -n "$SERVER_IP_INTERNAL" ]; then
+    ALT_NAMES="$ALT_NAMES
+IP.$IP_INDEX = $SERVER_IP_INTERNAL"
+    ((IP_INDEX++))
+fi
+
+if [ -n "$SERVER_IP_PUBLIC" ] && [ "$SERVER_IP_PUBLIC" != "$SERVER_IP_INTERNAL" ]; then
+    ALT_NAMES="$ALT_NAMES
+IP.$IP_INDEX = $SERVER_IP_PUBLIC"
+fi
 
 # Crear configuración OpenSSL
 cat > basicstation-server.conf << EOF
@@ -84,14 +187,14 @@ CN = basicstation-server
 subjectAltName = @alt_names
 
 [alt_names]
-DNS.1 = localhost
-DNS.2 = $SERVER_HOSTNAME
-DNS.3 = chirpstack-gateway-bridge-basicstation-au915-0
-DNS.4 = chirpstack-gateway-bridge-basicstation-au915-1
-DNS.5 = chirpstack-gateway-bridge-basicstation-au915-2
-IP.1 = 127.0.0.1
-IP.2 = $SERVER_IP
+$ALT_NAMES
 EOF
+
+log "Configuración OpenSSL generada:"
+echo "  ────────────────────────────────────────"
+grep -A20 "\[alt_names\]" basicstation-server.conf | head -15
+echo "  ────────────────────────────────────────"
+echo ""
 
 # Generar clave privada
 log "1/4 - Generando clave privada..."
@@ -139,6 +242,13 @@ else
     exit 1
 fi
 
+# Mostrar SANs del certificado generado
+echo ""
+log "Subject Alternative Names (SANs) incluidos en el certificado:"
+echo "  ────────────────────────────────────────"
+openssl x509 -in basicstation-server.pem -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" | tail -1 | tr ',' '\n' | sed 's/^/  /'
+echo ""
+
 echo ""
 echo "  ⚠️  Pasos siguientes:"
 echo ""
@@ -150,6 +260,14 @@ echo "     Generar certificado TLS para el gateway"
 echo ""
 echo "  3. En el Gateway UG67, configurar Basics Station:"
 echo "     - Packet Forwarder: Semtech UDP → Basics Station"
-echo "     - LNS Server: wss://TU_IP:3001"
+if [ -n "$SERVER_IP_PUBLIC" ]; then
+echo "     - LNS Server: wss://$SERVER_IP_PUBLIC:3001 (IP Pública)"
+fi
+echo "     - LNS Server: wss://$SERVER_IP_INTERNAL:3001 (IP Interna)"
 echo "     - Subir certificados descargados de ChirpStack"
+echo ""
+echo "  4. Puertos expuestos por sub-band:"
+echo "     - AU915_0: Puerto 3000 → wss://IP:3000"
+echo "     - AU915_1: Puerto 3001 → wss://IP:3001"
+echo "     - AU915_2: Puerto 3002 → wss://IP:3002"
 echo ""

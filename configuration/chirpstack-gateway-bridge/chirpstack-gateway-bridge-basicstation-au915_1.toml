@@ -1,35 +1,27 @@
-# See https://www.chirpstack.io/gateway-bridge/install/config/ for a full
-# configuration example and documentation.
+# Gateway Bridge - Basics Station AU915 Sub-band 1
+# Documentación: https://www.chirpstack.io/docs/chirpstack-gateway-bridge/configuration.html
 
-[integration.mqtt.auth.generic]
-servers=["tcp://mosquitto:1883"]
-username=""
-password=""
+# Logging
+[logging]
+level="info"
 
-[integration.mqtt]
-event_topic_template="au915_1/gateway/{{ .GatewayID }}/event/{{ .EventType }}"
-state_topic_template="au915_1/gateway/{{ .GatewayID }}/state/{{ .StateType }}"
-command_topic_template="au915_1/gateway/{{ .GatewayID }}/command/#"
-
+# Backend: Basics Station
 [backend]
 type="basic_station"
 
   [backend.basic_station]
   bind=":3001"
-  
-  # TLS para conexiones seguras con gateways (Basics Station)
-  # Todos los certificados usan el mismo CA de ChirpStack
-  ca_cert="/etc/chirpstack-gateway-bridge/certs/ca.pem"
-  tls_cert="/etc/chirpstack-gateway-bridge/certs/basicstation-server.pem"
-  tls_key="/etc/chirpstack-gateway-bridge/certs/basicstation-server-key.pem"
-
   region="AU915"
   frequency_min=915000000
   frequency_max=928000000
 
+  # TLS Configuration for Basics Station
+  tls_cert="/etc/chirpstack-gateway-bridge/certs/basicstation-server.pem"
+  tls_key="/etc/chirpstack-gateway-bridge/certs/basicstation-server-key.pem"
+  ca_cert="/etc/chirpstack-gateway-bridge/certs/ca.pem"
 
+  # Concentrator configuration - Sub-band 1 (channels 8-15)
   [[backend.basic_station.concentrators]]
-
     [backend.basic_station.concentrators.multi_sf]
     frequencies=[
       916800000,
@@ -46,3 +38,20 @@ type="basic_station"
     frequency=917500000
     bandwidth=500000  
     spreading_factor=8
+
+# Integration: MQTT
+[integration]
+marshaler="protobuf"
+
+  [integration.mqtt]
+  event_topic_template="au915_1/gateway/{{ .GatewayID }}/event/{{ .EventType }}"
+  state_topic_template="au915_1/gateway/{{ .GatewayID }}/state/{{ .StateType }}"
+  command_topic_template="au915_1/gateway/{{ .GatewayID }}/command/#"
+
+  [integration.mqtt.auth]
+  type="generic"
+
+    [integration.mqtt.auth.generic]
+    servers=["tcp://mosquitto:1883"]
+    username=""
+    password=""
