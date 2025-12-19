@@ -25,6 +25,21 @@ log_error() {
     echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ❌ $1${NC}"
 }
 
+log_warn() {
+    echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️  $1${NC}"
+}
+
+# Función para obtener IP pública
+get_public_ip() {
+    # Intentar obtener IP pública desde servicios externos
+    local public_ip=""
+    public_ip=$(curl -s --connect-timeout 5 https://api.ipify.org 2>/dev/null) || \
+    public_ip=$(curl -s --connect-timeout 5 https://ifconfig.me 2>/dev/null) || \
+    public_ip=$(curl -s --connect-timeout 5 https://icanhazip.com 2>/dev/null) || \
+    public_ip=""
+    echo "$public_ip"
+}
+
 echo ""
 echo "╔═══════════════════════════════════════════════════════════╗"
 echo "║     Generador de Certificados MQTT Server                 ║"
@@ -46,24 +61,103 @@ cd "$CERTS_DIR"
 
 # Verificar si ya existen certificados del servidor MQTT
 if [ -f "$CERTS_DIR/mqtt-server.pem" ] && [ -f "$CERTS_DIR/mqtt-server-key.pem" ]; then
-    log "⚠️  Los certificados del servidor MQTT ya existen"
-    read -p "¿Deseas regenerarlos? (y/N): " -n 1 -r
+    log_warn "Los certificados del servidor MQTT ya existen"
+    echo ""
+    echo "  Certificados actuales:"
+    echo "  - mqtt-server.pem"
+    echo "  - mqtt-server-key.pem"
+    echo ""
+    
+    # Mostrar información del certificado actual
+    if command -v openssl &> /dev/null; then
+        echo "  📋 Información del certificado actual:"
+        echo "  ────────────────────────────────────────"
+        CURRENT_EXPIRY=$(openssl x509 -in mqtt-server.pem -noout -enddate 2>/dev/null | cut -d= -f2)
+        CURRENT_SANS=$(openssl x509 -in mqtt-server.pem -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" | tail -1 | xargs)
+        echo "  Expira: $CURRENT_EXPIRY"
+        echo "  SANs:   $CURRENT_SANS"
+        echo ""
+    fi
+    
+    read -p "¿Deseas ELIMINAR los certificados existentes y regenerarlos? (y/N): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Usando certificados existentes."
+        echo "Manteniendo certificados existentes."
         exit 0
     fi
-    rm -f mqtt-server.pem mqtt-server-key.pem mqtt-server.csr mqtt-server.conf
+    
+    log "Eliminando certificados antiguos..."
+    rm -f mqtt-server.pem mqtt-server-key.pem mqtt-server.csr mqtt-server.conf ca.srl
+    log "✅ Certificados antiguos eliminados"
+    echo ""
 fi
 
 # Obtener información del servidor
-SERVER_IP=$(hostname -I | awk '{print $1}')
+SERVER_IP_INTERNAL=$(hostname -I | awk '{print $1}')
 SERVER_HOSTNAME=$(hostname)
 
-log "Generando certificados para servidor MQTT Mosquitto..."
-log "IP del servidor: $SERVER_IP"
-log "Hostname: $SERVER_HOSTNAME"
+# Intentar obtener IP pública automáticamente
+log "Detectando IP pública..."
+SERVER_IP_PUBLIC=$(get_public_ip)
+
 echo ""
+echo "  ┌─────────────────────────────────────────────────────────┐"
+echo "  │  Configuración de IPs para el certificado              │"
+echo "  ├─────────────────────────────────────────────────────────┤"
+echo "  │  IP Interna detectada:  $SERVER_IP_INTERNAL"
+echo "  │  IP Pública detectada:  ${SERVER_IP_PUBLIC:-No detectada}"
+echo "  │  Hostname:              $SERVER_HOSTNAME"
+echo "  └─────────────────────────────────────────────────────────┘"
+echo ""
+
+# Preguntar por IP pública si no se detectó o para confirmar
+if [ -z "$SERVER_IP_PUBLIC" ]; then
+    log_warn "No se pudo detectar la IP pública automáticamente"
+fi
+
+read -p "¿Deseas ingresar/modificar la IP pública manualmente? (y/N): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    read -p "Ingresa la IP pública del servidor: " MANUAL_IP
+    if [ -n "$MANUAL_IP" ]; then
+        SERVER_IP_PUBLIC="$MANUAL_IP"
+        log "✅ IP pública configurada: $SERVER_IP_PUBLIC"
+    fi
+fi
+
+# Validar que tenemos al menos una IP
+if [ -z "$SERVER_IP_INTERNAL" ] && [ -z "$SERVER_IP_PUBLIC" ]; then
+    log_error "No se pudo obtener ninguna IP del servidor"
+    exit 1
+fi
+
+echo ""
+log "Generando certificados para servidor MQTT Mosquitto..."
+echo ""
+echo "  📋 Resumen de configuración:"
+echo "  ────────────────────────────────────────"
+echo "  IP Interna:  $SERVER_IP_INTERNAL"
+echo "  IP Pública:  ${SERVER_IP_PUBLIC:-No configurada}"
+echo "  Hostname:    $SERVER_HOSTNAME"
+echo ""
+
+# Construir alt_names dinámicamente
+ALT_NAMES="DNS.1 = mosquitto
+DNS.2 = localhost
+DNS.3 = $SERVER_HOSTNAME
+IP.1 = 127.0.0.1"
+
+IP_INDEX=2
+if [ -n "$SERVER_IP_INTERNAL" ]; then
+    ALT_NAMES="$ALT_NAMES
+IP.$IP_INDEX = $SERVER_IP_INTERNAL"
+    ((IP_INDEX++))
+fi
+
+if [ -n "$SERVER_IP_PUBLIC" ] && [ "$SERVER_IP_PUBLIC" != "$SERVER_IP_INTERNAL" ]; then
+    ALT_NAMES="$ALT_NAMES
+IP.$IP_INDEX = $SERVER_IP_PUBLIC"
+fi
 
 # Crear configuración OpenSSL para el certificado del servidor
 cat > mqtt-server.conf << EOF
@@ -86,12 +180,14 @@ CN = mosquitto
 subjectAltName = @alt_names
 
 [alt_names]
-DNS.1 = mosquitto
-DNS.2 = localhost
-DNS.3 = $SERVER_HOSTNAME
-IP.1 = 127.0.0.1
-IP.2 = $SERVER_IP
+$ALT_NAMES
 EOF
+
+log "Configuración OpenSSL generada:"
+echo "  ────────────────────────────────────────"
+grep -A20 "\[alt_names\]" mqtt-server.conf | head -10
+echo "  ────────────────────────────────────────"
+echo ""
 
 # Generar clave privada del servidor MQTT
 log "1/4 - Generando clave privada del servidor..."
@@ -144,6 +240,13 @@ else
     exit 1
 fi
 
+# Mostrar SANs del certificado generado
+echo ""
+log "Subject Alternative Names (SANs) incluidos en el certificado:"
+echo "  ────────────────────────────────────────"
+openssl x509 -in mqtt-server.pem -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" | tail -1 | tr ',' '\n' | sed 's/^/  /'
+echo ""
+
 echo ""
 echo "  ⚠️  Pasos siguientes:"
 echo ""
@@ -159,4 +262,11 @@ echo ""
 echo "  3. Generar certificado de cliente desde ChirpStack UI:"
 echo "     Applications → [Tu App] → Integrations → MQTT"
 echo "     → Generate TLS Certificate"
+echo ""
+echo "  4. En Node-RED, asegúrate de usar en 'Server Name':"
+if [ -n "$SERVER_IP_PUBLIC" ]; then
+echo "     → $SERVER_IP_PUBLIC (IP Pública)"
+fi
+echo "     → $SERVER_IP_INTERNAL (IP Interna)"
+echo "     → mosquitto (si estás dentro de Docker)"
 echo ""
