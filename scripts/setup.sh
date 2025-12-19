@@ -223,15 +223,15 @@ fi
 # =============================================================================
 # PASO 5: Importar dispositivos LoRaWAN
 # =============================================================================
-log_step "PASO 5/5: Importando dispositivos LoRaWAN"
+# log_step "PASO 5/5: Importando dispositivos LoRaWAN"
 
-log "Este proceso puede tardar varios minutos..."
+# log "Este proceso puede tardar varios minutos..."
 
-docker compose run --rm --entrypoint sh --user root chirpstack -c '
-    apk add --no-cache git && \
-    git clone https://github.com/brocaar/lorawan-devices /tmp/lorawan-devices && \
-    chirpstack -c /etc/chirpstack import-legacy-lorawan-devices-repository -d /tmp/lorawan-devices
-' 2>&1 | tee -a $LOG_FILE
+# docker compose run --rm --entrypoint sh --user root chirpstack -c '
+#     apk add --no-cache git && \
+#     git clone https://github.com/brocaar/lorawan-devices /tmp/lorawan-devices && \
+#     chirpstack -c /etc/chirpstack import-legacy-lorawan-devices-repository -d /tmp/lorawan-devices
+# ' 2>&1 | tee -a $LOG_FILE
 
 # =============================================================================
 # Resumen final
