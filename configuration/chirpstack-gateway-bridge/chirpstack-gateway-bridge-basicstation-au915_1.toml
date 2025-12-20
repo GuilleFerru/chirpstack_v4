@@ -3,7 +3,7 @@
 
 # Logging
 [logging]
-level="info"
+level="debug"
 
 # Backend: Basics Station
 [backend]

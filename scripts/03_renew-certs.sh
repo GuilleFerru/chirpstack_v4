@@ -11,7 +11,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 CERTS_DIR="$PROJECT_DIR/configuration/chirpstack/certs"
 TEMP_CERTS_DIR="/tmp/chirpstack-certificates"
 CHIRPSTACK_CERTS_REPO="https://github.com/chirpstack/chirpstack-certificates.git"
-CERT_EXPIRY_HOURS="43800h"  # 5 años
+CERT_EXPIRY_HOURS="438000h"  # 50 años
 
 # Colores
 RED='\033[0;31m'
@@ -41,7 +41,7 @@ echo "║  Este script regenerará los certificados CA.              ║"
 echo "║  Los certificados de aplicaciones deberán regenerarse     ║"
 echo "║  desde la UI de ChirpStack después de este proceso.       ║"
 echo "║                                                           ║"
-echo "║  Duración de nuevos certificados: 5 años                  ║"
+echo "║  Duración de nuevos certificados: 50 años                 ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -95,8 +95,8 @@ fi
 
 cd "$TEMP_CERTS_DIR"
 
-# Modificar expiración a 5 años
-log "Configurando expiración a 5 años (43800 horas)..."
+# Modificar expiración a 50 años
+log "Configurando expiración a 50 años (438000 horas)..."
 # Reemplazar TODAS las expiraciones encontradas en los archivos JSON
 find . -name "*.json" -exec sed -i 's/"expiry": "[0-9]*h"/"expiry": "'"$CERT_EXPIRY_HOURS"'"/g' {} \;
 

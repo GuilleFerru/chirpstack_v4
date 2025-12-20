@@ -9,11 +9,11 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 CERTS_DIR="$PROJECT_DIR/configuration/chirpstack/certs"
 CHIRPSTACK_CERTS_REPO="https://github.com/chirpstack/chirpstack-certificates.git"
 
-# Duración de los certificados en horas (5 años = 43800 horas)
-CERT_EXPIRY_HOURS="43800h"
+# Duración de los certificados en horas (50 años = 438000 horas)
+CERT_EXPIRY_HOURS="438000h"
 
 echo "=== Generador de Certificados ChirpStack ==="
-echo "Duración: 5 años"
+echo "Duración: 50 años"
 echo "Destino: $CERTS_DIR"
 echo ""
 
@@ -60,8 +60,8 @@ fi
 
 cd "$TEMP_CERTS_DIR"
 
-# Modificar la expiración de certificados a 5 años (43800 horas)
-echo "Configurando expiración de certificados a 5 años..."
+# Modificar la expiración de certificados a 50 años (438000 horas)
+echo "Configurando expiración de certificados a 50 años..."
 # Reemplazar TODAS las expiraciones encontradas en los archivos JSON
 find . -name "*.json" -exec sed -i 's/"expiry": "[0-9]*h"/"expiry": "'"$CERT_EXPIRY_HOURS"'"/g' {} \;
 sed -i "s/\"expiry\": \"8760h\"/\"expiry\": \"$CERT_EXPIRY_HOURS\"/g" config/ca-config.json

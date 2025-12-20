@@ -133,7 +133,7 @@ fi
 # =============================================================================
 # PASO 3: Generar certificados
 # =============================================================================
-log_step "PASO 3/5: Generando certificados CA (válidos por 5 años)"
+log_step "PASO 3/5: Generando certificados CA (válidos por 50 años)"
 
 CERTS_DIR="$PROJECT_DIR/configuration/chirpstack/certs"
 TEMP_CERTS_DIR="/tmp/chirpstack-certificates"
@@ -165,8 +165,8 @@ if [ ! -f "$CERTS_DIR/ca.pem" ] || [ ! -f "$CERTS_DIR/ca-key.pem" ]; then
 
     cd "$TEMP_CERTS_DIR"
 
-    # Modificar expiración a 5 años (43800 horas)
-    log "Configurando expiración a 5 años..."
+    # Modificar expiración a 50 años (438000 horas)
+    log "Configurando expiración a 50 años..."
     # Reemplazar TODAS las expiraciones encontradas en los archivos JSON
     find . -name "*.json" -exec sed -i 's/"expiry": "[0-9]*h"/"expiry": "43800h"/g' {} \;
 
@@ -184,7 +184,7 @@ if [ ! -f "$CERTS_DIR/ca.pem" ] || [ ! -f "$CERTS_DIR/ca-key.pem" ]; then
     chmod 644 "$CERTS_DIR/ca.pem"
     chmod 600 "$CERTS_DIR/ca-key.pem"
 
-    log "✅ Certificados generados (válidos hasta $(date -d '+5 years' '+%Y-%m-%d'))"
+    log "✅ Certificados generados (válidos hasta $(date -d '+50 years' '+%Y-%m-%d'))"
 fi
 
 # =============================================================================

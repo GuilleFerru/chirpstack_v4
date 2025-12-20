@@ -197,11 +197,11 @@ openssl genrsa -out mqtt-server-key.pem 2048
 log "2/4 - Generando Certificate Signing Request (CSR)..."
 openssl req -new -key mqtt-server-key.pem -out mqtt-server.csr -config mqtt-server.conf
 
-# Firmar el certificado con el CA (válido por 5 años = 1825 días)
-log "3/4 - Firmando certificado con CA (válido por 5 años)..."
+# Firmar el certificado con el CA (válido por 50 años = 18250 días)
+log "3/4 - Firmando certificado con CA (válido por 50 años)..."
 openssl x509 -req -in mqtt-server.csr \
     -CA ca.pem -CAkey ca-key.pem -CAcreateserial \
-    -out mqtt-server.pem -days 1825 \
+    -out mqtt-server.pem -days 18250 \
     -extfile mqtt-server.conf -extensions req_ext
 
 # Limpiar archivos temporales
