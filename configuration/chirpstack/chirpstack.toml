@@ -108,7 +108,7 @@
 
 # Gateway configuration (for generating gateway client certificates)
 [gateway]
-  client_cert_lifetime="43800h"  # 5 años
+  client_cert_lifetime="438000h"  # 50 años
   ca_cert="/etc/chirpstack/certs/ca.pem"
   ca_key="/etc/chirpstack/certs/ca-key.pem"
 
@@ -121,6 +121,6 @@
 
     # Client certificate configuration (for per-application MQTT integrations)
     [integration.mqtt.client]
-      client_cert_lifetime="43800h"  # 5 años
+      client_cert_lifetime="438000h"  # 50 años
       ca_cert="/etc/chirpstack/certs/ca.pem"
       ca_key="/etc/chirpstack/certs/ca-key.pem"
